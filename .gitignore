@@ -1,0 +1,23 @@
+# Virtual Environment
+venv/
+
+# API Keys
+.env
+
+# ChromaDB vectorstore (no need to push embeddings)
+vectorstore/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Data folder (PDFs are personal/large)
+data/
+
+# VS Code settings
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
