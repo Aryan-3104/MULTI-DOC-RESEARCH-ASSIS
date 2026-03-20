@@ -68,21 +68,24 @@ def create_prompt() -> PromptTemplate:
     Create the RAG prompt template.
     
     Instructions:
-    - Cite which document the answer came from
-    - Synthesize across multiple documents when needed
-    - Say "I could not find this" if context insufficient
+    - ALWAYS cite document and page number
+    - Synthesize across ALL documents
+    - Compare different perspectives when documents discuss same topic
+    - Structure answer by document when comparing
+    - Never claim information is unavailable if relevant chunks exist
     
     Returns:
         PromptTemplate object
     """
-    template = """You are a helpful research assistant. Use the provided document chunks to answer the user's question.
+    template = """You are an expert research assistant analyzing multiple documents.
 
 **Important Rules:**
 1. ALWAYS cite which document and page your answer comes from
-2. If the question requires info from multiple documents, synthesize them clearly
-3. If the documents don't contain enough info to answer, say: "I could not find sufficient information to answer this question in the provided documents."
-4. Be concise but comprehensive
-5. Format citations as: [Source: filename.pdf, Page X]
+2. You MUST attempt to synthesize information across ALL provided documents
+3. If different documents discuss the same topic differently, compare them explicitly
+4. Never say you cannot find information if relevant chunks are provided
+5. Structure your answer by document when comparing across papers
+6. Format citations as: [Source: filename.pdf, Page X]
 
 **Retrieved Documents:**
 {context}

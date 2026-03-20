@@ -1,30 +1,35 @@
 """
 Retriever Module
 
-Simple retriever that fetches top-4 most similar chunks from vectorstore.
-Uses cosine similarity search.
+Dynamically sets k based on number of uploaded documents.
+Formula: k = num_sources * 3, bounded between 3 and 15.
 """
 
-from langchain_core.retrievers import BaseRetriever
 from langchain_community.vectorstores import Chroma
+from src.embedder import get_unique_sources_count
 
 
-def create_retriever(vectorstore: Chroma, k: int = 4) -> BaseRetriever:
+def create_retriever(vectorstore):
     """
-    Create a retriever from a Chroma vectorstore.
+    Dynamically sets k based on number of uploaded documents.
+    
+    Formula: k = num_sources * 3
+    Min k = 3, Max k = 15
     
     Args:
         vectorstore: Chroma vectorstore object
-        k: Number of chunks to retrieve (default: 4)
     
     Returns:
         LangChain retriever object
-    
-    Example:
-        vectorstore = load_vectorstore(embeddings)
-        retriever = create_retriever(vectorstore, k=4)
-        chunks = retriever.invoke("What is machine learning?")
     """
+    # Count unique documents in vectorstore
+    num_sources = get_unique_sources_count(vectorstore)
+    
+    # 3 chunks per document, bounded between 3 and 15
+    k = max(3, min(num_sources * 4, 15))
+    
+    print(f"Documents detected: {num_sources} → Setting k={k}")
+    
     retriever = vectorstore.as_retriever(
         search_type="similarity",
         search_kwargs={"k": k}

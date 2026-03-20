@@ -8,9 +8,10 @@ Optimized for 8GB RAM with batch_size=16.
 
 import os
 import shutil
+import time
 from pathlib import Path
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from langchain_core.documents import Document
 
 
@@ -127,8 +128,13 @@ def create_or_load_vectorstore(chunks: list = None, embeddings=None, force_recre
     
     # Force recreate: delete existing vectorstore
     if force_recreate and os.path.exists(VECTORSTORE_DIR):
-        print(f"Deleting existing vectorstore at {VECTORSTORE_DIR}...")
-        shutil.rmtree(VECTORSTORE_DIR)
+        success = delete_vectorstore()
+        if not success:
+            raise RuntimeError(
+                "Failed to delete old vectorstore. This may be due to file locks on Windows. "
+                "Try closing the browser tab/Streamlit app completely, wait 5 seconds, and try again. "
+                "If issue persists, delete the 'vectorstore' folder manually."
+            )
     
     # Load existing vectorstore
     if os.path.exists(PERSIST_DIRECTORY):
@@ -146,18 +152,50 @@ def create_or_load_vectorstore(chunks: list = None, embeddings=None, force_recre
     return create_vectorstore(chunks, embeddings)
 
 
-def delete_vectorstore() -> None:
+def delete_vectorstore() -> bool:
     """
-    Delete the persisted vectorstore directory.
+    Safely delete the persisted vectorstore directory.
     
+    Handles Windows file-locking issues with retry logic.
     Use with caution - this removes all embeddings and requires re-embedding from scratch.
+    
+    Returns:
+        True if deleted successfully, False if failed
     """
-    if os.path.exists(VECTORSTORE_DIR):
-        print(f"Deleting vectorstore at {VECTORSTORE_DIR}...")
-        shutil.rmtree(VECTORSTORE_DIR)
-        print("✓ Vectorstore deleted")
-    else:
+    if not os.path.exists(VECTORSTORE_DIR):
         print(f"No vectorstore found at {VECTORSTORE_DIR}")
+        return True
+    
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            print(f"Deleting vectorstore at {VECTORSTORE_DIR}...")
+            # Remove read-only attributes to release file locks
+            for root, dirs, files in os.walk(VECTORSTORE_DIR):
+                for file in files:
+                    try:
+                        file_path = os.path.join(root, file)
+                        os.chmod(file_path, 0o777)  # Make writable
+                    except Exception:
+                        pass
+            
+            shutil.rmtree(VECTORSTORE_DIR)
+            print("✓ Vectorstore deleted successfully")
+            return True
+            
+        except PermissionError as e:
+            if attempt < max_retries - 1:
+                print(f"⚠ File locked, retrying in 1 second... (attempt {attempt + 1}/{max_retries})")
+                time.sleep(1)
+            else:
+                print(f"❌ Failed to delete vectorstore: {e}")
+                print("Try: Close the app completely and try again, or manually delete the 'vectorstore' folder")
+                return False
+        except Exception as e:
+            print(f"❌ Error deleting vectorstore: {e}")
+            return False
+    
+    return False
 
 
 def get_vectorstore_info(vectorstore: Chroma) -> dict:
@@ -194,7 +232,32 @@ def get_vectorstore_info(vectorstore: Chroma) -> dict:
         "persist_directory": PERSIST_DIRECTORY
     }
 
-
+def get_unique_sources_count(vectorstore) -> int:
+    """
+    Count how many unique PDF sources are in the vectorstore.
+    Used to dynamically set k for retrieval.
+    
+    Returns:
+        Number of unique source documents
+    """
+    try:
+        all_metadata = vectorstore._collection.get(
+            include=["metadatas"]
+        )["metadatas"]
+        
+        sources = set()
+        for meta in all_metadata:
+            if "source" in meta:
+                sources.add(meta["source"])
+        
+        print(f"Unique sources found: {len(sources)} → {list(sources)}")
+        return len(sources)
+    
+    except Exception as e:
+        print(f"Could not count sources: {e}. Defaulting to k=3")
+        return 1  # fallback
+    
+    
 if __name__ == "__main__":
     # Test embeddings load
     embeddings = load_embeddings()
@@ -208,3 +271,21 @@ if __name__ == "__main__":
     else:
         print(f"\nNo vectorstore found at {PERSIST_DIRECTORY}")
         print("Create one with: create_or_load_vectorstore(chunks, embeddings)")
+def get_unique_sources_count(vectorstore) -> int:
+    """
+    Count how many unique PDF sources are in the vectorstore.
+    Used to dynamically set k for retrieval.
+    """
+    try:
+        all_metadata = vectorstore._collection.get(
+            include=["metadatas"]
+        )["metadatas"]
+        
+        sources = set()
+        for meta in all_metadata:
+            if "source" in meta:
+                sources.add(meta["source"])
+        
+        return len(sources)
+    except:
+        return 1  # fallback to 1 if something goes wrong
