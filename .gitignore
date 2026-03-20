@@ -21,3 +21,5 @@ data/
 # OS files
 .DS_Store
 Thumbs.db
+
+COPILOT_CONTEXT.md
