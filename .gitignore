@@ -22,4 +22,16 @@ data/
 .DS_Store
 Thumbs.db
 
+# Documentation (local only, not for git)
 COPILOT_CONTEXT.md
+EVALUATION.md
+IMPLEMENTATION_SUMMARY.md
+QUICK_REFERENCE.md
+
+# Evaluation results (local testing only)
+evaluation_results.json
+
+# IDE
+.idea/
+*.swp
+*.swo

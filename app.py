@@ -8,9 +8,13 @@ import streamlit as st
 from pathlib import Path
 
 from src.loader import load_and_chunk_pdfs
-from src.embedder import create_or_load_vectorstore, load_embeddings, delete_vectorstore
+from src.embedder import create_or_load_vectorstore, load_embeddings, delete_vectorstore, cleanup_vectorstore_connections, cleanup_old_vectorstores
 from src.retriever import create_retriever
 from src.chain import build_rag_chain, invoke_chain
+
+
+# Clean up any old vectorstore directories from previous failed deletions
+cleanup_old_vectorstores()
 
 
 # Streamlit page configuration
@@ -28,6 +32,15 @@ if "rag_chain" not in st.session_state:
     st.session_state.rag_chain = None
 if "vectorstore" not in st.session_state:
     st.session_state.vectorstore = None
+if "embeddings" not in st.session_state:
+    st.session_state.embeddings = None  # Cache embeddings to avoid PyO3 reload
+
+
+# Load embeddings model at app startup (only once)
+# This ensures embeddings are always available when needed
+if st.session_state.embeddings is None:
+    with st.spinner("Loading embeddings model on startup..."):
+        st.session_state.embeddings = load_embeddings()
 
 
 # ============================================================================
@@ -79,14 +92,23 @@ with st.sidebar:
     
     if clear_cache:
         with st.spinner("Clearing vectorstore cache..."):
+            # Clear session state to release all objects from memory
+            st.session_state.documents_processed = False
+            st.session_state.rag_chain = None
+            st.session_state.vectorstore = None
+            # Don't clear embeddings - we'll reuse it to avoid PyO3 reinitialization
+            
+            # Cleanup ChromaDB connections before deletion
+            cleanup_vectorstore_connections()
+            
+            # Delete the vectorstore directory (renames it out of the way)
             success = delete_vectorstore()
+            
             if success:
-                st.session_state.documents_processed = False
-                st.session_state.rag_chain = None
-                st.session_state.vectorstore = None
-                st.success("✅ Cache cleared! You can now upload new documents.")
+                st.success("✅ Vectorstore cleared successfully!")
+                st.info("📝 You can now upload new PDFs and process them.")
             else:
-                st.error("❌ Failed to clear cache. Try closing the app and deleting the 'vectorstore' folder manually.")
+                st.error("❌ Failed to clear cache. Please restart the app manually.")
     
     # Process documents when button clicked
     if process_button:
@@ -95,9 +117,44 @@ with st.sidebar:
         else:
             with st.spinner("📚 Processing documents..."):
                 try:
+                    # ===== CRITICAL FIX: Don't reload ChromaDB unnecessarily =====
+                    st.write("🧹 Step 1: Cleaning up old vectorstore from memory...")
+                    
+                    # Release vectorstore object
+                    st.session_state.vectorstore = None
+                    st.session_state.rag_chain = None
+                    
+                    # Embeddings are already loaded at app startup - use cached version
+                    st.write("✓ Using cached embeddings model")
+                    
+                    # Force garbage collection
+                    import gc
+                    gc.collect()
+                    
+                    # Close ChromaDB connections
+                    cleanup_vectorstore_connections()
+                    
+                    # Wait for locks to release
+                    import time
+                    time.sleep(1.0)
+                    # ===================================================================
+                    
+                    # ===== Delete vectorstore folder =====
+                    st.write("🗑️  Step 2: Deleting old vectorstore folder from disk...")
+                    
+                    delete_success = delete_vectorstore()
+                    if not delete_success:
+                        st.warning("⚠️  Could not fully delete old vectorstore, but proceeding...")
+                    # ======================================
+                    
                     # Create data directory and save files
+                    st.write("📁 Step 3: Saving uploaded PDFs...")
                     data_dir = Path("data")
                     data_dir.mkdir(exist_ok=True)
+                    
+                    # Delete old PDFs to prevent stale sources
+                    for old_file in data_dir.glob("*.pdf"):
+                        old_file.unlink()
                     
                     # Save uploaded files
                     for uploaded_file in uploaded_files:
@@ -106,6 +163,7 @@ with st.sidebar:
                             f.write(uploaded_file.getbuffer())
                     
                     # Load and chunk PDFs
+                    st.write("📄 Step 4: Loading and chunking PDFs...")
                     documents = load_and_chunk_pdfs(str(data_dir))
                     
                     if not documents:
@@ -113,21 +171,17 @@ with st.sidebar:
                     else:
                         st.write(f"✓ Loaded {len(documents)} chunks from PDFs")
                         
-                        # Load embeddings
-                        st.write("Loading embeddings model...")
-                        embeddings = load_embeddings()
-                        
-                        # Create vectorstore
-                        st.write("Building vectorstore...")
+                        # Use cached embeddings to avoid PyO3 reinitialization
+                        st.write("🗂️  Step 5: Creating fresh vectorstore...")
                         vectorstore = create_or_load_vectorstore(
                             chunks=documents,
-                            embeddings=embeddings,
-                            force_recreate=True
+                            embeddings=st.session_state.embeddings,
+                            force_recreate=False
                         )
                         st.session_state.vectorstore = vectorstore
                         
                         # Create retriever and RAG chain
-                        st.write("Building RAG chain...")
+                        st.write("🔗 Step 6: Building RAG chain...")
                         retriever = create_retriever(vectorstore)
                         rag_chain = build_rag_chain(retriever)
                         st.session_state.rag_chain = rag_chain
@@ -141,20 +195,8 @@ with st.sidebar:
                 except Exception as e:
                     error_msg = str(e)
                     st.error(f"❌ Error processing documents: {error_msg}")
-                    
-                    # Special handling for file lock errors
-                    if "WinError 32" in error_msg or "being used by another process" in error_msg:
-                        st.warning("""
-                        **File Lock Error (Windows)**
-                        
-                        The vectorstore is locked. Try these steps:
-                        1. Click the "🗑️ Clear Vectorstore Cache" button above
-                        2. Close the browser tab completely
-                        3. Wait 5 seconds
-                        4. Refresh and try again
-                        5. If still failing, manually delete the 'vectorstore' folder
-                        """)
-                    
+                    import traceback
+                    st.write(traceback.format_exc())
                     st.session_state.documents_processed = False
     
     # Show status

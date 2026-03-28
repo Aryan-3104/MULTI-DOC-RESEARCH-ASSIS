@@ -86,6 +86,28 @@ def load_and_chunk_pdfs(data_dir: str = "data") -> list:
     return all_chunks
 
 
+def clear_data_folder(data_dir: str = "data") -> None:
+    """
+    Delete all PDF files from the data directory.
+    Used to clear old PDFs before processing new uploads.
+    
+    Args:
+        data_dir: Path to directory to clear (default: "data")
+    """
+    if not os.path.exists(data_dir):
+        return
+    
+    data_path = Path(data_dir)
+    pdf_files = list(data_path.glob("*.pdf"))
+    
+    for pdf_file in pdf_files:
+        try:
+            pdf_file.unlink()
+            print(f"Deleted: {pdf_file.name}")
+        except Exception as e:
+            print(f"Could not delete {pdf_file.name}: {e}")
+
+
 def get_chunks_sample(chunks: list, num_samples: int = 3) -> None:
     """
     Print sample chunks for inspection.

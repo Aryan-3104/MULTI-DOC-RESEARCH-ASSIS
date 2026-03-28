@@ -86,7 +86,7 @@ def create_prompt() -> PromptTemplate:
 4. Never say you cannot find information if relevant chunks are provided
 5. Structure your answer by document when comparing across papers
 6. Format citations as: [Source: filename.pdf, Page X]
-
+7. Be concise — do not repeat the same information multiple times
 **Retrieved Documents:**
 {context}
 

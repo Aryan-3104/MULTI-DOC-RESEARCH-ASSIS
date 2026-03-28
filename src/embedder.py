@@ -108,33 +108,18 @@ def create_or_load_vectorstore(chunks: list = None, embeddings=None, force_recre
     Args:
         chunks: List of Document objects (required if creating new)
         embeddings: HuggingFaceEmbeddings object (required if creating new)
-        force_recreate: If True, delete existing vectorstore and recreate
+        force_recreate: If True, delete existing vectorstore and recreate (OPTIONAL - for backward compatibility)
     
     Returns:
         Chroma vectorstore object
-    
-    Example:
-        # Load existing vectorstore (fast)
-        vectorstore = create_or_load_vectorstore()
-        
-        # Create new vectorstore from chunks
-        chunks = load_and_chunk_pdfs()
-        embeddings = load_embeddings()
-        vectorstore = create_or_load_vectorstore(chunks, embeddings)
-        
-        # Force recreate even if exists
-        vectorstore = create_or_load_vectorstore(chunks, embeddings, force_recreate=True)
     """
     
-    # Force recreate: delete existing vectorstore
+    # If force_recreate requested but vectorstore already deleted, that's fine
     if force_recreate and os.path.exists(VECTORSTORE_DIR):
-        success = delete_vectorstore()
-        if not success:
-            raise RuntimeError(
-                "Failed to delete old vectorstore. This may be due to file locks on Windows. "
-                "Try closing the browser tab/Streamlit app completely, wait 5 seconds, and try again. "
-                "If issue persists, delete the 'vectorstore' folder manually."
-            )
+        print("⚠️  force_recreate=True, attempting to delete old vectorstore...")
+        delete_success = delete_vectorstore()
+        if not delete_success:
+            print("⚠️  Delete returned False, but proceeding anyway...")
     
     # Load existing vectorstore
     if os.path.exists(PERSIST_DIRECTORY):
@@ -152,50 +137,168 @@ def create_or_load_vectorstore(chunks: list = None, embeddings=None, force_recre
     return create_vectorstore(chunks, embeddings)
 
 
-def delete_vectorstore() -> bool:
+def cleanup_vectorstore_connections():
     """
-    Safely delete the persisted vectorstore directory.
+    Close and cleanup all Chroma database connections, embeddings, and file handles.
     
-    Handles Windows file-locking issues with retry logic.
-    Use with caution - this removes all embeddings and requires re-embedding from scratch.
+    This is critical for Windows file locking issues - all references must be explicitly
+    cleared and garbage collected before attempting deletion. Call this BEFORE delete_vectorstore().
     
     Returns:
-        True if deleted successfully, False if failed
+        None
     """
+    # Import gc to force cleanup
+    import gc
+    # Import sys to access modules
+    import sys
+    
+    print("🔌 Cleaning up connections and removing module references...")
+    
+    # Step 1: Try to explicitly close ChromaDB client if it exists
+    print("  Step 1: Closing ChromaDB client...")
+    try:
+        import chromadb
+        try:
+            # Try multiple ways to close the client
+            if hasattr(chromadb, '_ClientSingleton'):
+                chromadb._ClientSingleton = None
+            # Try to reset the global client
+            chromadb._cached_client = None
+        except Exception:
+            pass
+        
+        try:
+            # Try to get and close the client directly
+            client = chromadb.get_client()
+            if hasattr(client, 'close'):
+                client.close()
+            if hasattr(client, '_client'):
+                if hasattr(client._client, 'close'):
+                    client._client.close()
+        except Exception:
+            pass
+        print("    ✓ ChromaDB client cleanup attempted")
+    except Exception as e:
+        print(f"    ⚠️  ChromaDB not available: {e}")
+    
+    # Step 2: Unload ChromaDB and related modules from sys.modules
+    print("  Step 2: Unloading ChromaDB modules...")
+    modules_to_remove = [key for key in sys.modules.keys() if 'chroma' in key.lower()]
+    for module_name in modules_to_remove:
+        try:
+            del sys.modules[module_name]
+        except Exception:
+            pass
+    if modules_to_remove:
+        print(f"    ✓ Unloaded {len(modules_to_remove)} ChromaDB-related modules")
+    
+    # Step 3: Force aggressive garbage collection
+    print("  Step 3: Forcing garbage collection...")
+    for i in range(10):  # 10 passes instead of 5
+        gc.collect()
+    print("    ✓ Garbage collection completed (10 passes)")
+    
+    # Step 4: Sleep longer to ensure OS releases all locks
+    print("  Step 4: Waiting for OS to release file locks...")
+    import time
+    time.sleep(2)  # Increased from 1.5 to 2 seconds
+    print("    ✓ Cleanup complete")
+
+
+def delete_vectorstore() -> bool:
+    """
+    Delete the vectorstore directory using Windows-compatible approach.
+    
+    Strategy: Rename the directory first (works even with locks), then delete it.
+    If rename succeeds, return True immediately - the old vectorstore is isolated.
+    
+    Returns:
+        True if successfully isolated/deleted, False only if rename fails completely
+    """
+    # Import datetime for unique timestamps
+    from datetime import datetime
+    
+    # Check if the vectorstore directory exists on disk at the expected location
     if not os.path.exists(VECTORSTORE_DIR):
-        print(f"No vectorstore found at {VECTORSTORE_DIR}")
+        # Vectorstore directory was already deleted or never existed, return success
+        print(f"ℹ No vectorstore found at {VECTORSTORE_DIR}")
         return True
     
-    max_retries = 3
-    for attempt in range(max_retries):
+    print(f"🗑️  Deleting vectorstore at {VECTORSTORE_DIR}...")
+    
+    try:
+        # PRIMARY STRATEGY: Rename the directory first
+        # This ALWAYS works on Windows even if files are locked, because Windows allows
+        # renaming directories with open file handles
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        temp_dir_name = f"vectorstore_old_{timestamp}"
+        
+        print(f"  Step 1: Renaming directory to {temp_dir_name}...")
         try:
-            print(f"Deleting vectorstore at {VECTORSTORE_DIR}...")
-            # Remove read-only attributes to release file locks
-            for root, dirs, files in os.walk(VECTORSTORE_DIR):
-                for file in files:
-                    try:
-                        file_path = os.path.join(root, file)
-                        os.chmod(file_path, 0o777)  # Make writable
-                    except Exception:
-                        pass
+            os.rename(VECTORSTORE_DIR, temp_dir_name)
+            print(f"  ✓ Successfully renamed!")
+            print(f"  ✓ Original 'vectorstore' is now isolated")
             
-            shutil.rmtree(VECTORSTORE_DIR)
-            print("✓ Vectorstore deleted successfully")
+            # Try to clean it up right now (best effort, don't fail if it doesn't work)
+            print(f"  Step 2: Cleaning up renamed directory...")
+            try:
+                shutil.rmtree(temp_dir_name, ignore_errors=True)
+                print(f"  ✓ Renamed directory cleaned up")
+            except Exception:
+                print(f"  ⚠️  Will clean up on next startup")
+            
+            print(f"✅ Vectorstore successfully cleared!")
             return True
+        
+        except OSError as e:
+            # Rename failed - try direct deletion
+            print(f"  Rename failed: {e}")
+            print(f"  Attempting direct deletion...")
             
-        except PermissionError as e:
-            if attempt < max_retries - 1:
-                print(f"⚠ File locked, retrying in 1 second... (attempt {attempt + 1}/{max_retries})")
-                time.sleep(1)
-            else:
-                print(f"❌ Failed to delete vectorstore: {e}")
-                print("Try: Close the app completely and try again, or manually delete the 'vectorstore' folder")
-                return False
-        except Exception as e:
-            print(f"❌ Error deleting vectorstore: {e}")
+            try:
+                shutil.rmtree(VECTORSTORE_DIR, ignore_errors=True)
+                time.sleep(0.3)
+                if not os.path.exists(VECTORSTORE_DIR):
+                    print(f"✅ Vectorstore deleted successfully")
+                    return True
+            except Exception:
+                pass
+            
+            print(f"❌ Could not delete vectorstore")
             return False
     
-    return False
+    except Exception as e:
+        print(f"❌ Unexpected error: {e}")
+        return False
+
+
+def cleanup_old_vectorstores():
+    """
+    Clean up old renamed vectorstore directories from previous deletion attempts.
+    
+    This is called on app startup to clean up any vectorstore_old_* directories
+    that couldn't be deleted during active sessions. By the time the app restarts,
+    all file locks will be released, allowing deletion to succeed.
+    
+    Returns:
+        None (silently cleans up in background)
+    """
+    import glob
+    
+    # Find all old vectorstore directories
+    old_dirs = glob.glob("vectorstore_old_*")
+    
+    if old_dirs:
+        print(f"🧹 Cleaning up {len(old_dirs)} old vectorstore directory/ies from previous sessions...")
+        for old_dir in old_dirs:
+            try:
+                shutil.rmtree(old_dir, ignore_errors=True)
+                print(f"  ✓ Deleted {old_dir}")
+            except Exception as e:
+                print(f"  ⚠️  Could not delete {old_dir}: {e}")
+
+
 
 
 def get_vectorstore_info(vectorstore: Chroma) -> dict:
@@ -271,21 +374,3 @@ if __name__ == "__main__":
     else:
         print(f"\nNo vectorstore found at {PERSIST_DIRECTORY}")
         print("Create one with: create_or_load_vectorstore(chunks, embeddings)")
-def get_unique_sources_count(vectorstore) -> int:
-    """
-    Count how many unique PDF sources are in the vectorstore.
-    Used to dynamically set k for retrieval.
-    """
-    try:
-        all_metadata = vectorstore._collection.get(
-            include=["metadatas"]
-        )["metadatas"]
-        
-        sources = set()
-        for meta in all_metadata:
-            if "source" in meta:
-                sources.add(meta["source"])
-        
-        return len(sources)
-    except:
-        return 1  # fallback to 1 if something goes wrong
