@@ -7,6 +7,7 @@ Formats retrieved chunks and generates answers with source citations.
 """
 import os
 from dotenv import load_dotenv
+import streamlit as st
 from langchain_groq import ChatGroq
 from langchain_core.prompts import PromptTemplate
 from langchain_community.vectorstores import Chroma
@@ -28,16 +29,34 @@ def get_groq_api_key() -> str:
     """
     Get Groq API key from environment.
     
+    Priority:
+    1. Streamlit secrets (st.secrets) - used on Streamlit Cloud
+    2. Environment variable (os.getenv) - used in local development
+    
     Raises:
-        ValueError: If GROQ_API_KEY not set in .env
+        ValueError: If GROQ_API_KEY not found in either location
     """
+    # Try Streamlit secrets first (Streamlit Cloud)
+    try:
+        api_key = st.secrets.get("GROQ_API_KEY")
+        if api_key:
+            return api_key
+    except (AttributeError, FileNotFoundError):
+        # AttributeError: st.secrets doesn't exist outside Streamlit context
+        # FileNotFoundError: .streamlit/secrets.toml doesn't exist
+        pass
+    
+    # Fall back to environment variable (local development)
     api_key = os.getenv("GROQ_API_KEY")
-    if not api_key:
-        raise ValueError(
-            "GROQ_API_KEY not found in .env file. "
-            "Please add: GROQ_API_KEY=your_key"
-        )
-    return api_key
+    if api_key:
+        return api_key
+    
+    # No API key found in either location
+    raise ValueError(
+        "GROQ_API_KEY not found. Please set it using one of:\n"
+        "1. Local: Create .env file with GROQ_API_KEY=your_key\n"
+        "2. Streamlit Cloud: Set GROQ_API_KEY in Secrets (top-right menu)"
+    )
 
 
 def create_llm() -> ChatGroq:
