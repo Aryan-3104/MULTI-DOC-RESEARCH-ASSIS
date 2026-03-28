@@ -24,7 +24,7 @@ A production-ready **Retrieval-Augmented Generation (RAG)** system that enables 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.11+
+- Python 3.14+
 - Groq API key (free at https://console.groq.com)
 
 ### Installation
