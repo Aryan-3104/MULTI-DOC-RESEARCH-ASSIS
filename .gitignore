@@ -3,6 +3,7 @@ venv/
 
 # API Keys
 .env
+.streamlit/secrets.toml  # Streamlit Cloud secrets (NEVER commit!)
 
 # ChromaDB vectorstore (no need to push embeddings)
 vectorstore/
