@@ -325,6 +325,54 @@ Possible improvements:
 
 ---
 
+## **Developer Notes**
+
+- **Run the app locally (Windows PowerShell):**
+
+```powershell
+# create and activate venv (if not created)
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+
+# install deps
+pip install -r requirements.txt
+
+# run the Streamlit UI
+streamlit run app.py
+```
+
+- **Run the evaluation script (CLI):**
+
+```powershell
+# Evaluate RAG outputs / run automated evaluator
+python evaluate_rag.py
+```
+
+- **Run unit tests:**
+
+```powershell
+# from project root
+pip install pytest    # if not already installed
+pytest -q
+```
+
+- **Rebuild or reset the vectorstore:**
+
+1. Delete the `vectorstore/chroma_db/` directory (or move it) to force reindexing.
+2. Re-run the app and upload documents; the app will re-create the chroma DB.
+
+- **Key scripts:**
+
+- `app.py` — Streamlit app (UI, upload, Q&A, evaluation button)
+- `evaluate_rag.py` — Batch/CLI evaluator for RAG outputs
+- `test_evaluator.py` — Unit tests for the evaluator logic
+
+- **Where embeddings are stored:**
+
+The ChromaDB SQLite files live in `vectorstore/chroma_db/`. Don’t commit them.
+
+---
+
 ## 📝 License
 
 MIT License - Use freely for personal and commercial projects.
@@ -340,6 +388,4 @@ Open an issue on GitHub or check out:
 
 ---
 
-**Made with ❤️ for the LLM community**
-
-*Last updated: March 2026*
+*Last updated: May 7, 2026*
