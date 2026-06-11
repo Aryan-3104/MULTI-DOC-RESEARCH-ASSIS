@@ -21,19 +21,19 @@ enableCORS = true
 # THEME SETTINGS
 # ============================================================================
 [theme]
-# Primary color - vibrant blue for professional RAG application
-primaryColor = "#0066CC"
+# Primary color - vibrant indigo accent
+primaryColor = "#6366F1"
 
-# Background color - clean light background
-backgroundColor = "#FFFFFF"
+# Background color - deep slate gray/black
+backgroundColor = "#0F172A"
 
-# Secondary background color - light gray for panels
-secondaryBackgroundColor = "#F5F5F5"
+# Secondary background color - slate card panel background
+secondaryBackgroundColor = "#1E293B"
 
-# Text color - dark gray for readability
-textColor = "#1F1F1F"
+# Text color - soft white/gray for readability
+textColor = "#F8FAFC"
 
-# Font family - clean sans-serif
+# Font family - clean modern sans-serif
 font = "sans serif"
 
 # ============================================================================

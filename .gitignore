@@ -1,12 +1,18 @@
 # Virtual Environment
 venv/
 
-# API Keys
+# API Keys & Local Secrets
 .env
+.env.*
+.env.local
+secrets.toml
 .streamlit/secrets.toml  # Streamlit Cloud secrets (NEVER commit!)
+*.key
+*.pem
 
 # ChromaDB vectorstore (no need to push embeddings)
 vectorstore/
+vectorstore_old_*/
 
 # Python cache
 __pycache__/
@@ -36,3 +42,8 @@ evaluation_results.json
 .idea/
 *.swp
 *.swo
+
+# Local logs & database files
+*.log
+*.sqlite
+*.db
