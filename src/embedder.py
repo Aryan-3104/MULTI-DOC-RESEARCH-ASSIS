@@ -219,57 +219,75 @@ def delete_vectorstore() -> bool:
     from datetime import datetime
     
     # Check if the vectorstore directory exists on disk at the expected location
-    if not os.path.exists(VECTORSTORE_DIR):
+    if not os.path.exists(VECTORSTORE_DIR) and not os.path.exists(PERSIST_DIRECTORY):
         # Vectorstore directory was already deleted or never existed, return success
-        print(f"ℹ No vectorstore found at {VECTORSTORE_DIR}")
+        print(f"ℹ No vectorstore found at {VECTORSTORE_DIR} or {PERSIST_DIRECTORY}")
         return True
+
+    print(f"🗑️  Deleting vectorstore (paths: {VECTORSTORE_DIR}, {PERSIST_DIRECTORY})...")
     
-    print(f"🗑️  Deleting vectorstore at {VECTORSTORE_DIR}...")
-    
-    try:
-        # PRIMARY STRATEGY: Rename the directory first
-        # This ALWAYS works on Windows even if files are locked, because Windows allows
-        # renaming directories with open file handles
-        
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        temp_dir_name = f"vectorstore_old_{timestamp}"
-        
-        print(f"  Step 1: Renaming directory to {temp_dir_name}...")
+    def _on_rm_error(func, path, exc_info):
+        # Clear read-only flag and retry
         try:
-            os.rename(VECTORSTORE_DIR, temp_dir_name)
-            print(f"  ✓ Successfully renamed!")
-            print(f"  ✓ Original 'vectorstore' is now isolated")
-            
-            # Try to clean it up right now (best effort, don't fail if it doesn't work)
-            print(f"  Step 2: Cleaning up renamed directory...")
+            os.chmod(path, 0o666)
+            func(path)
+        except Exception:
+            pass
+
+    # Helper to attempt rmtree with retries
+    def try_rmtree(path, retries=3, delay=0.5):
+        for attempt in range(retries):
             try:
-                shutil.rmtree(temp_dir_name, ignore_errors=True)
-                print(f"  ✓ Renamed directory cleaned up")
-            except Exception:
-                print(f"  ⚠️  Will clean up on next startup")
-            
-            print(f"✅ Vectorstore successfully cleared!")
-            return True
-        
-        except OSError as e:
-            # Rename failed - try direct deletion
-            print(f"  Rename failed: {e}")
-            print(f"  Attempting direct deletion...")
-            
-            try:
-                shutil.rmtree(VECTORSTORE_DIR, ignore_errors=True)
-                time.sleep(0.3)
-                if not os.path.exists(VECTORSTORE_DIR):
-                    print(f"✅ Vectorstore deleted successfully")
+                if os.path.exists(path):
+                    shutil.rmtree(path, onerror=_on_rm_error)
+                if not os.path.exists(path):
                     return True
-            except Exception:
-                pass
-            
-            print(f"❌ Could not delete vectorstore")
-            return False
-    
+            except Exception as e:
+                print(f"    Attempt {attempt+1} failed to remove {path}: {e}")
+                time.sleep(delay)
+        return False
+
+    try:
+        # Preferred: delete the persistent Chroma DB directory directly first
+        if os.path.exists(PERSIST_DIRECTORY):
+            print(f"  Step 1: Removing persist directory {PERSIST_DIRECTORY}...")
+            if try_rmtree(PERSIST_DIRECTORY, retries=5, delay=0.6):
+                # If the top-level vectorstore directory is now empty, remove it too
+                if os.path.exists(VECTORSTORE_DIR) and not os.listdir(VECTORSTORE_DIR):
+                    try_rmtree(VECTORSTORE_DIR, retries=3, delay=0.3)
+                print(f"✅ Persist directory removed")
+                return True
+            else:
+                print(f"  ⚠️  Could not fully remove {PERSIST_DIRECTORY} directly")
+
+        # Fallback: try renaming the top-level 'vectorstore' directory to isolate it
+        if os.path.exists(VECTORSTORE_DIR):
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+            temp_dir_name = f"vectorstore_old_{timestamp}"
+            print(f"  Step 2: Renaming {VECTORSTORE_DIR} to {temp_dir_name}...")
+            try:
+                os.rename(VECTORSTORE_DIR, temp_dir_name)
+                print(f"  ✓ Successfully renamed {VECTORSTORE_DIR} -> {temp_dir_name}")
+                # Try to remove the renamed folder now
+                if try_rmtree(temp_dir_name, retries=5, delay=0.6):
+                    print(f"  ✓ Renamed directory cleaned up")
+                else:
+                    print(f"  ⚠️  Renamed directory will be cleaned up on next startup")
+                return True
+            except OSError as e:
+                print(f"  Rename failed: {e}")
+
+        # As a last resort, attempt direct deletion of both paths
+        print(f"  Step 3: Final attempt to delete paths directly...")
+        if try_rmtree(PERSIST_DIRECTORY, retries=3, delay=0.5) or try_rmtree(VECTORSTORE_DIR, retries=3, delay=0.5):
+            print(f"✅ Vectorstore deleted successfully (final attempt)")
+            return True
+
+        print(f"❌ Could not delete vectorstore after all attempts")
+        return False
+
     except Exception as e:
-        print(f"❌ Unexpected error: {e}")
+        print(f"❌ Unexpected error during deletion: {e}")
         return False
 
 
