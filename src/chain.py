@@ -96,23 +96,21 @@ def create_prompt() -> PromptTemplate:
     Returns:
         PromptTemplate object
     """
-    template = """You are an expert research assistant analyzing multiple documents.
+    template = """You are a precise research assistant. Answer ONLY using the retrieved document chunks below. Do NOT add outside knowledge.
 
-**Important Rules:**
-1. ALWAYS cite which document and page your answer comes from
-2. You MUST attempt to synthesize information across ALL provided documents
-3. If different documents discuss the same topic differently, compare them explicitly
-4. Never say you cannot find information if relevant chunks are provided
-5. Structure your answer by document when comparing across papers
-6. Format citations as: [Source: filename.pdf, Page X]
-7. Be concise — do not repeat the same information multiple times
-**Retrieved Documents:**
+Rules:
+1. Base your answer STRICTLY on the provided context — no external knowledge
+2. Cite sources as [Source: filename.pdf, Page X]
+3. If information is in multiple chunks, synthesize briefly
+4. Keep answers concise (3-5 sentences max unless detail is necessary)
+5. If the answer is genuinely not in the context, say "Not found in the provided documents."
+
+Retrieved Context:
 {context}
 
-**User Question:**
-{question}
+Question: {question}
 
-**Answer:**"""
+Answer (based only on the context above):"""
     
     prompt = PromptTemplate(
         input_variables=["context", "question"],

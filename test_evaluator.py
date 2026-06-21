@@ -8,6 +8,15 @@ import sys
 import os
 from pathlib import Path
 
+# Reconfigure stdout/stderr to UTF-8 to prevent UnicodeEncodeError on Windows console
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding='utf-8')
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding='utf-8')
+except Exception:
+    pass
+
 # Test 1: File structure
 print("=" * 60)
 print("🔍 VERIFICATION TEST")
@@ -84,8 +93,14 @@ except Exception as e:
 
 print("\n5️⃣  Checking requirements...")
 try:
-    with open("requirements.txt") as f:
-        content = f.read()
+    try:
+        with open("requirements.txt", encoding="utf-8") as f:
+            content = f.read()
+        if "\x00" in content:
+            raise UnicodeDecodeError("utf-8", b"", 0, 1, "contains nulls")
+    except (UnicodeDecodeError, ValueError):
+        with open("requirements.txt", encoding="utf-16") as f:
+            content = f.read()
         
     required_packages = ['ragas', 'datasets', 'groq', 'langchain']
     print(f"  ✓ requirements.txt found")

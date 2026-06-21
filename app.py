@@ -4,6 +4,9 @@ Streamlit UI for Multi-Document RAG Application
 Upload PDFs, ask questions, get answers with source citations.
 """
 
+import nest_asyncio
+nest_asyncio.apply = lambda: None
+
 import streamlit as st
 from pathlib import Path
 

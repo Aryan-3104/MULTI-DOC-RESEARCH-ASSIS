@@ -6,18 +6,31 @@ Metrics: faithfulness, answer_relevancy, context_precision.
 Uses Groq API for evaluation LLM (mixtral-8x7b-32768).
 """
 
+import nest_asyncio
+nest_asyncio.apply = lambda: None
+
 import os
 import json
+import sys
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
+
+# Reconfigure stdout/stderr to UTF-8 to prevent UnicodeEncodeError on Windows console
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding='utf-8')
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding='utf-8')
+except Exception:
+    pass
 
 # Load environment variables
 load_dotenv()
 
 # Model configuration
-EVALUATOR_MODEL = "mixtral-8x7b-32768"
+EVALUATOR_MODEL = "llama-3.1-8b-instant"
 EVALUATOR_TEMPERATURE = 0  # Factual evaluation
-EVALUATOR_MAX_TOKENS = 1024
+EVALUATOR_MAX_TOKENS = 1024  # RAGAS only needs short scoring responses (was 4096)
 
 # Try importing RAGAS - graceful fallback if not installed
 try:
@@ -54,8 +67,7 @@ def get_evaluator_llm() -> ChatGroq:
         model=EVALUATOR_MODEL,
         temperature=EVALUATOR_TEMPERATURE,
         max_tokens=EVALUATOR_MAX_TOKENS,
-        api_key=api_key,
-        timeout=30.0
+        api_key=api_key
     )
     
     print(f"✓ Evaluator LLM initialized: {EVALUATOR_MODEL}")
@@ -131,6 +143,10 @@ def run_ragas_evaluation(
         # Get evaluator LLM
         evaluator_llm = get_evaluator_llm()
         
+        # Load local embeddings to avoid OpenAI API key requirement
+        from src.embedder import load_embeddings
+        evaluator_embeddings = load_embeddings()
+        
         # Define metrics to evaluate
         metrics = [
             faithfulness,
@@ -138,38 +154,77 @@ def run_ragas_evaluation(
             context_precision
         ]
         
-        # Run RAGAS evaluation
-        print("\n⏳ Running RAGAS evaluation (this may take a minute)...")
-        run_config = RunConfig(timeout=300, max_retries=2)
+        # Run RAGAS evaluation - sequential (max_workers=1) to avoid rate limit bursts
+        print("\n⏳ Running RAGAS evaluation (sequential mode to avoid rate limits)...")
+        run_config = RunConfig(timeout=120, max_retries=5, max_workers=1)
         
         results = evaluate(
             dataset=dataset,
             metrics=metrics,
             llm=evaluator_llm,
+            embeddings=evaluator_embeddings,
             run_config=run_config
         )
         
-        # Calculate overall score
-        faithfulness_score = float(results["faithfulness"]) if "faithfulness" in results else 0.0
-        answer_relevancy_score = float(results["answer_relevancy"]) if "answer_relevancy" in results else 0.0
-        context_precision_score = float(results["context_precision"]) if "context_precision" in results else 0.0
-        
+        # ── Robust score extraction ──────────────────────────────────────────
+        # RAGAS 0.2+ returns an EvaluationResult whose __getitem__ gives a
+        # *list* of per-sample floats (one per question), not a scalar mean.
+        # Calling float([0.9, 0.8, …]) raises TypeError → caught as "failed: 0".
+        # Fix: use pandas export first, then fall back to safe per-sample mean.
+        import math as _math
+        import traceback as _tb
+
+        def _safe_mean(val, default=0.0):
+            """Mean of a scalar or iterable, ignoring NaN/Inf."""
+            try:
+                if val is None:
+                    return default
+                if hasattr(val, '__iter__') and not isinstance(val, str):
+                    valid = []
+                    for v in val:
+                        try:
+                            f = float(v)
+                            if not _math.isnan(f) and not _math.isinf(f):
+                                valid.append(f)
+                        except (TypeError, ValueError):
+                            pass
+                    return sum(valid) / len(valid) if valid else default
+                f = float(val)
+                return default if (_math.isnan(f) or _math.isinf(f)) else f
+            except Exception:
+                return default
+
+        try:
+            # Preferred: pandas gives reliable per-column means
+            df = results.to_pandas()
+            faithfulness_score      = _safe_mean(df["faithfulness"].tolist()     if "faithfulness"     in df.columns else [])
+            answer_relevancy_score  = _safe_mean(df["answer_relevancy"].tolist()  if "answer_relevancy"  in df.columns else [])
+            context_precision_score = _safe_mean(df["context_precision"].tolist() if "context_precision" in df.columns else [])
+            print("✓ Scores extracted via pandas DataFrame")
+        except Exception as _df_err:
+            print(f"  (pandas extraction note: {_df_err} — using direct access)")
+            faithfulness_score      = _safe_mean(results["faithfulness"])      if "faithfulness"     in results else 0.0
+            answer_relevancy_score  = _safe_mean(results["answer_relevancy"])   if "answer_relevancy"  in results else 0.0
+            context_precision_score = _safe_mean(results["context_precision"])  if "context_precision" in results else 0.0
+
         overall_score = (
             faithfulness_score + answer_relevancy_score + context_precision_score
         ) / 3
-        
+
         evaluation_results = {
             "faithfulness": round(faithfulness_score, 4),
             "answer_relevancy": round(answer_relevancy_score, 4),
             "context_precision": round(context_precision_score, 4),
             "overall_score": round(overall_score, 4)
         }
-        
+
         print("✓ RAGAS evaluation completed successfully")
         return evaluation_results
-        
+
     except Exception as e:
+        import traceback as _tb
         print(f"⚠️  RAGAS evaluation failed: {e}")
+        _tb.print_exc()   # show full stack trace so the real error is visible
         print("Falling back to simple rule-based evaluation...")
         return _fallback_evaluation(questions, answers, ground_truths, contexts)
 

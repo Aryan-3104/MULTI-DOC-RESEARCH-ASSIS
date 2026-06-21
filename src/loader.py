@@ -42,10 +42,13 @@ def load_and_chunk_pdfs(data_dir: str = "data") -> list:
     print(f"Found {len(pdf_files)} PDF(s): {[f.name for f in pdf_files]}")
     
     # Initialize text splitter
+    # Larger chunks (800) with more overlap (150) give RAGAS better context:
+    # - Faithfulness ↑: answers are fully grounded in complete context
+    # - Context Precision ↑: each chunk covers a full semantic idea
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=500,           # Characters per chunk
-        chunk_overlap=50,         # Overlap between chunks
-        separators=["\n\n", "\n", " ", ""]  # Split hierarchy
+        chunk_size=800,           # Characters per chunk (was 500)
+        chunk_overlap=150,        # Overlap between chunks (was 50)
+        separators=["\n\n", "\n", ". ", " ", ""]  # Split hierarchy
     )
     
     all_chunks = []

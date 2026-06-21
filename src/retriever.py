@@ -25,14 +25,16 @@ def create_retriever(vectorstore):
     # Count unique documents in vectorstore
     num_sources = get_unique_sources_count(vectorstore)
     
-    # 3 chunks per document, bounded between 3 and 15
-    k = max(3, min(num_sources * 4, 15))
+    # 3 chunks per document, bounded between 3 and 12
+    k = max(3, min(num_sources * 3, 12))
     
     print(f"Documents detected: {num_sources} → Setting k={k}")
     
+    # MMR (Maximal Marginal Relevance) reduces redundant chunks,
+    # which directly improves RAGAS context_precision score.
     retriever = vectorstore.as_retriever(
-        search_type="similarity",
-        search_kwargs={"k": k}
+        search_type="mmr",
+        search_kwargs={"k": k, "fetch_k": k * 3, "lambda_mult": 0.7}
     )
     return retriever
 

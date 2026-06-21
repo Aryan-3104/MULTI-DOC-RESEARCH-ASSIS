@@ -9,11 +9,23 @@ Usage:
     python evaluate_rag.py
 """
 
+import nest_asyncio
+nest_asyncio.apply = lambda: None
+
 import os
 import json
 import sys
 from pathlib import Path
 from dotenv import load_dotenv
+
+# Reconfigure stdout/stderr to UTF-8 to prevent UnicodeEncodeError on Windows console
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding='utf-8')
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding='utf-8')
+except Exception:
+    pass
 
 # Import RAG components
 from src.loader import load_and_chunk_pdfs
@@ -32,7 +44,7 @@ load_dotenv()
 # Configuration
 DATA_DIR = "data"
 RESULTS_FILE = "evaluation_results.json"
-NUM_QUESTIONS = 7  # Generate 7 test questions
+NUM_QUESTIONS = 3  # 3 questions uses ~3x fewer tokens, avoids Groq free-tier daily limit (100k TPD)
 
 
 def get_groq_api_key() -> str:
