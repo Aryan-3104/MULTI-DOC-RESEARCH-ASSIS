@@ -11,13 +11,11 @@ import streamlit as st
 from pathlib import Path
 
 from src.loader import load_and_chunk_pdfs
-from src.embedder import create_or_load_vectorstore, load_embeddings, delete_vectorstore, cleanup_vectorstore_connections, cleanup_old_vectorstores, get_vectorstore_info
+from src.embedder import create_or_load_vectorstore, load_embeddings, delete_vectorstore, get_vectorstore_info
 from src.retriever import create_retriever
 from src.chain import build_rag_chain, invoke_chain
 
 
-# Clean up any old vectorstore directories from previous failed deletions
-cleanup_old_vectorstores()
 
 
 # Streamlit page configuration
@@ -318,24 +316,23 @@ with st.sidebar:
                     # Embeddings are already loaded at app startup - use cached version
                     st.write("✓ Using cached embeddings model")
                     
-                    # Force garbage collection
+                    # Force garbage collection to release ChromaDB file locks
                     import gc
                     gc.collect()
                     
-                    # Close ChromaDB connections
-                    cleanup_vectorstore_connections()
-                    
-                    # Wait for locks to release
+                    # Wait for locks to release on Windows
                     import time
                     time.sleep(1.0)
                     # ===================================================================
+
                     
                     # ===== Delete vectorstore folder =====
                     st.write("🗑️  Step 2: Deleting old vectorstore folder from disk...")
                     
-                    delete_success = delete_vectorstore()
-                    if not delete_success:
-                        st.warning("⚠️  Could not fully delete old vectorstore, but proceeding...")
+                    try:
+                        delete_vectorstore()
+                    except Exception as _del_err:
+                        st.warning(f"⚠️  Could not fully delete old vectorstore: {_del_err}. Proceeding anyway...")
                     # ======================================
                     
                     # Create data directory and save files

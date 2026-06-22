@@ -257,8 +257,14 @@ def save_evaluation_results(results: dict, answers: list[str], questions: list[s
         answers: List of generated answers
         questions: List of evaluation questions
     """
+    import time
+    from datetime import datetime, timezone, timedelta
+
+    IST = timezone(timedelta(hours=5, minutes=30))
+    now = time.time()
     output = {
-        "timestamp": Path(RESULTS_FILE).stat().st_mtime if Path(RESULTS_FILE).exists() else None,
+        "timestamp": now,
+        "datetime": datetime.fromtimestamp(now, tz=IST).strftime("%Y-%m-%d %H:%M:%S IST"),
         "metrics": results,
         "num_questions": len(questions),
         "num_answers": len(answers),

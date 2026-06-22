@@ -95,6 +95,7 @@ The pipeline:
 | `GROQ_API_KEY not found` | Add key to `.env` file |
 | `No PDF files found` | Add PDFs to `data/` folder |
 | `rate_limit_exceeded` | Reduce `NUM_QUESTIONS` in `evaluate_rag.py` or wait for daily limit reset |
+| `create_prompt() got an unexpected keyword argument 'mode'` | ✅ Fixed — removed stale `mode="eval"` arg from `evaluate_rag.py` line 169 |
 | Low Context Precision | Lower `k` in `retriever.py` or switch to MMR (already default) |
 | Pydantic V1 warnings | Expected on Python 3.14 — safe to ignore |
 | Stale vectorstore after config change | Delete `vectorstore/chroma_db/` and re-run |

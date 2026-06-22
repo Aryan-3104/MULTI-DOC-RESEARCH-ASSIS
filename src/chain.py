@@ -7,7 +7,6 @@ Formats retrieved chunks and generates answers with source citations.
 """
 import os
 from dotenv import load_dotenv
-import streamlit as st
 from langchain_groq import ChatGroq
 from langchain_core.prompts import PromptTemplate
 from langchain_community.vectorstores import Chroma
@@ -29,34 +28,16 @@ def get_groq_api_key() -> str:
     """
     Get Groq API key from environment.
     
-    Priority:
-    1. Streamlit secrets (st.secrets) - used on Streamlit Cloud
-    2. Environment variable (os.getenv) - used in local development
-    
     Raises:
-        ValueError: If GROQ_API_KEY not found in either location
+        ValueError: If GROQ_API_KEY not set in .env
     """
-    # Try Streamlit secrets first (Streamlit Cloud)
-    try:
-        api_key = st.secrets.get("GROQ_API_KEY")
-        if api_key:
-            return api_key
-    except (AttributeError, FileNotFoundError):
-        # AttributeError: st.secrets doesn't exist outside Streamlit context
-        # FileNotFoundError: .streamlit/secrets.toml doesn't exist
-        pass
-    
-    # Fall back to environment variable (local development)
     api_key = os.getenv("GROQ_API_KEY")
-    if api_key:
-        return api_key
-    
-    # No API key found in either location
-    raise ValueError(
-        "GROQ_API_KEY not found. Please set it using one of:\n"
-        "1. Local: Create .env file with GROQ_API_KEY=your_key\n"
-        "2. Streamlit Cloud: Set GROQ_API_KEY in Secrets (top-right menu)"
-    )
+    if not api_key:
+        raise ValueError(
+            "GROQ_API_KEY not found in .env file. "
+            "Please add: GROQ_API_KEY=your_key"
+        )
+    return api_key
 
 
 def create_llm() -> ChatGroq:
@@ -87,30 +68,29 @@ def create_prompt() -> PromptTemplate:
     Create the RAG prompt template.
     
     Instructions:
-    - ALWAYS cite document and page number
-    - Synthesize across ALL documents
-    - Compare different perspectives when documents discuss same topic
-    - Structure answer by document when comparing
-    - Never claim information is unavailable if relevant chunks exist
+    - Cite which document the answer came from
+    - Synthesize across multiple documents when needed
+    - Say "I could not find this" if context insufficient
     
     Returns:
         PromptTemplate object
     """
-    template = """You are a precise research assistant. Answer ONLY using the retrieved document chunks below. Do NOT add outside knowledge.
+    template = """You are a helpful research assistant. Use the provided document chunks to answer the user's question.
 
-Rules:
-1. Base your answer STRICTLY on the provided context — no external knowledge
-2. Cite sources as [Source: filename.pdf, Page X]
-3. If information is in multiple chunks, synthesize briefly
-4. Keep answers concise (3-5 sentences max unless detail is necessary)
-5. If the answer is genuinely not in the context, say "Not found in the provided documents."
+**Important Rules:**
+1. ALWAYS cite which document and page your answer comes from
+2. If the question requires info from multiple documents, synthesize them clearly
+3. If the documents don't contain enough info to answer, say: "I could not find sufficient information to answer this question in the provided documents."
+4. Be concise but comprehensive
+5. Format citations as: [Source: filename.pdf, Page X]
 
-Retrieved Context:
+**Retrieved Documents:**
 {context}
 
-Question: {question}
+**User Question:**
+{question}
 
-Answer (based only on the context above):"""
+**Answer:**"""
     
     prompt = PromptTemplate(
         input_variables=["context", "question"],
