@@ -30,7 +30,7 @@ load_dotenv()
 # Model configuration
 EVALUATOR_MODEL = "llama-3.1-8b-instant"
 EVALUATOR_TEMPERATURE = 0  # Factual evaluation
-EVALUATOR_MAX_TOKENS = 1024  # RAGAS only needs short scoring responses (was 4096)
+EVALUATOR_MAX_TOKENS = 2048  # RAGAS only needs short scoring responses (was 4096)
 
 # Try importing RAGAS - graceful fallback if not installed
 try:
