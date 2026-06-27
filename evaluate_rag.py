@@ -101,16 +101,35 @@ def generate_test_questions(chunks: list) -> list:
         llm = create_groq_llm()
         
         # Create prompt for question generation
-        question_generation_prompt = f"""Based on the following document excerpts, generate exactly {NUM_QUESTIONS} diverse evaluation questions that cover different aspects of the content. The questions should be:
-1. Specific and answerable from the document
-2. Cover different topics/sections
-3. Require understanding of the material
-4. Be suitable for evaluating a RAG system
+        question_generation_prompt = f"""Based on the following document excerpts, generate exactly {NUM_QUESTIONS} evaluation questions.
+
+RULES — follow ALL of these strictly:
+1. One sentence only. Maximum 15 words.
+2. Ask about a SPECIFIC process, mechanism, requirement, property, or count found in the document.
+   - NOT a vague definition: do NOT ask "What is X?" or "Define X."
+   - NOT a compound question: do NOT use "and", "as well as", or ask two things at once.
+3. The question must name a specific concept from the document AND ask something concrete about it (how it works, how many steps/requirements, which type is used, what it contains, etc.).
+4. Each question must be fully answerable from the document text alone.
+5. Each question must be on a different topic.
+6. Output one question per line. No numbering, no bullets, no extra text.
+
+GOOD examples (specific, process-level):
+- What are the five requirements of a consensus mechanism?
+- Which consensus type is used in permissioned blockchains?
+- What does the block header store in a blockchain?
+- How does Proof of Work select the next block proposer?
+
+BAD examples (too vague or definitional):
+- What is consensus?
+- What is a block?
+- What is Byzantine Fault Tolerance?
+- What is blockchain technology?
 
 Document Excerpts:
 {doc_summary}
 
-Generate {NUM_QUESTIONS} questions, one per line. Do NOT include numbering or bullets, just the questions."""
+Generate {NUM_QUESTIONS} specific, process-level questions:"""
+
         
         # Generate questions
         response = llm.invoke(question_generation_prompt)
@@ -235,7 +254,7 @@ def create_ground_truths(questions: list, answers: list) -> list:
     print("\n📚 Creating ground truth answers...")
     
     try:
-        llm = create_llm()
+        llm = create_groq_llm()
         ground_truths = []
         
         for i, question in enumerate(questions, 1):
@@ -338,7 +357,7 @@ def main():
         questions = generate_test_questions(chunks)
         
         # 6. Run RAG pipeline
-        llm = create_llm()
+        llm = create_groq_llm()
         answers, contexts = run_rag_pipeline(questions, retriever, llm)
         
         # 7. Create ground truths
