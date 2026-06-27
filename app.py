@@ -539,7 +539,7 @@ else:
                     message_placeholder.error(error_msg)
                     st.markdown("""
                     **Troubleshooting:**
-                    - Ensure your `GROQ_API_KEY` is set correctly in `.env` or Streamlit Secrets.
+                    - Ensure your `GOOGLE_API_KEY` is set correctly in `.env` or Streamlit Secrets.
                     - Try clearing the vectorstore cache and re-processing documents.
                     """)
 
@@ -551,7 +551,7 @@ else:
 st.divider()
 st.markdown(
     "<div style='text-align: center; color: #64748B; font-size: 0.85em; font-weight: 500;'>"
-    "Multi-Document RAG Application | Powered by LangChain, ChromaDB, and Groq"
+    "Multi-Document RAG Application | Powered by LangChain, ChromaDB, and Gemini"
     "</div>",
     unsafe_allow_html=True
 )

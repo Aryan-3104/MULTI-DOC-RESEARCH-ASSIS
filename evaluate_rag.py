@@ -44,21 +44,21 @@ load_dotenv()
 # Configuration
 DATA_DIR = "data"
 RESULTS_FILE = "evaluation_results.json"
-NUM_QUESTIONS = 3  # 3 questions uses ~3x fewer tokens, avoids Groq free-tier daily limit (100k TPD)
+NUM_QUESTIONS = 3  # 3 questions keeps usage modest within Google AI free-tier limits
 
 
-def get_groq_api_key() -> str:
+def get_google_api_key() -> str:
     """
-    Get Groq API key from environment.
+    Get Google API key from environment.
     
     Raises:
-        ValueError: If GROQ_API_KEY not set
+        ValueError: If GOOGLE_API_KEY not set
     """
-    api_key = os.getenv("GROQ_API_KEY")
+    api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
         raise ValueError(
-            "GROQ_API_KEY not found in .env file. "
-            "Please add: GROQ_API_KEY=your_key"
+            "GOOGLE_API_KEY not found in .env file. "
+            "Please add: GOOGLE_API_KEY=your_key"
         )
     return api_key
 
@@ -293,8 +293,8 @@ def main():
     try:
         # 1. Validate API key
         print("\n🔑 Validating API credentials...")
-        get_groq_api_key()
-        print("✓ Groq API key found")
+        get_google_api_key()
+        print("✓ Google API key found")
         
         # 2. Load and chunk PDFs
         print(f"\n📄 Loading PDFs from '{DATA_DIR}'...")

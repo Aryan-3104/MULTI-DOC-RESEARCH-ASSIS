@@ -2,12 +2,12 @@
 RAG Chain Module
 
 Builds the LLM chain using LangChain LCEL (Langchain Expression Language).
-Uses Groq API with Llama 3.1 8B model.
+Uses Google Gemini 2.5 Flash via ChatGoogleGenerativeAI.
 Formats retrieved chunks and generates answers with source citations.
 """
 import os
 from dotenv import load_dotenv
-from langchain_groq import ChatGroq
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import PromptTemplate
 from langchain_community.vectorstores import Chroma
 from langchain_core.runnables import RunnablePassthrough, Runnable
@@ -19,44 +19,43 @@ from src.retriever import format_retrieved_chunks
 load_dotenv()
 
 # Model configuration
-MODEL_NAME = "llama-3.1-8b-instant"
+MODEL_NAME = "gemini-2.5-flash"
 TEMPERATURE = 0  # Factual, deterministic answers
 MAX_TOKENS = 1024
 
 
-def get_groq_api_key() -> str:
+def get_google_api_key() -> str:
     """
-    Get Groq API key from environment.
+    Get Google API key from environment.
     
     Raises:
-        ValueError: If GROQ_API_KEY not set in .env
+        ValueError: If GOOGLE_API_KEY not set in .env
     """
-    api_key = os.getenv("GROQ_API_KEY")
+    api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
         raise ValueError(
-            "GROQ_API_KEY not found in .env file. "
-            "Please add: GROQ_API_KEY=your_key"
+            "GOOGLE_API_KEY not found in .env file. "
+            "Please add: GOOGLE_API_KEY=your_key"
         )
     return api_key
 
 
-def create_llm() -> ChatGroq:
+def create_llm() -> ChatGoogleGenerativeAI:
     """
-    Create a ChatGroq LLM instance.
+    Create a ChatGoogleGenerativeAI LLM instance.
     
-    Uses llama-3.1-8b-instant model with temperature=0 for factual answers.
+    Uses gemini-2.5-flash model with temperature=0 for factual answers.
     
     Returns:
-        ChatGroq LLM object
+        ChatGoogleGenerativeAI LLM object
     """
-    api_key = get_groq_api_key()
+    api_key = get_google_api_key()
     
-    llm = ChatGroq(
+    llm = ChatGoogleGenerativeAI(
         model=MODEL_NAME,
         temperature=TEMPERATURE,
-        max_tokens=MAX_TOKENS,
-        api_key=api_key,
-        timeout=30.0
+        max_output_tokens=MAX_TOKENS,
+        google_api_key=api_key,
     )
     
     print(f"✓ LLM initialized: {MODEL_NAME} (temp={TEMPERATURE})")
@@ -100,7 +99,7 @@ def create_prompt() -> PromptTemplate:
     return prompt
 
 
-def build_rag_chain(retriever, llm: ChatGroq = None) -> RunnablePassthrough:
+def build_rag_chain(retriever, llm: ChatGoogleGenerativeAI = None) -> RunnablePassthrough:
     """
     Build the complete RAG chain using LangChain LCEL.
     
@@ -112,7 +111,7 @@ def build_rag_chain(retriever, llm: ChatGroq = None) -> RunnablePassthrough:
     
     Args:
         retriever: Document retriever from vectorstore
-        llm: ChatGroq LLM (creates if None)
+        llm: ChatGoogleGenerativeAI LLM (creates if None)
     
     Returns:
         LangChain LCEL chain
@@ -167,7 +166,7 @@ def invoke_chain(chain: RunnablePassthrough, question: str) -> str:
 
 
 if __name__ == "__main__":
-    # Test chain creation (requires vectorstore and .env with GROQ_API_KEY)
+    # Test chain creation (requires vectorstore and .env with GOOGLE_API_KEY)
     from src.embedder import load_embeddings, load_vectorstore
     from src.retriever import create_retriever
     
@@ -187,5 +186,5 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Error: {e}")
         print("\nTo test chain.py:")
-        print("1. Set GROQ_API_KEY in .env")
+        print("1. Set GOOGLE_API_KEY in .env")
         print("2. Ensure vectorstore exists (run loader.py + embedder.py first)")

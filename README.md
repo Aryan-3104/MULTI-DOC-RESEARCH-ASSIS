@@ -22,7 +22,7 @@ pip install -r requirements.txt
 Create a `.env` file in the project root:
 
 ```text
-GROQ_API_KEY=your_groq_api_key_here
+GOOGLE_API_KEY=your_google_api_key_here
 ```
 
 ## Run the app
@@ -73,7 +73,7 @@ The pipeline:
 | `src/loader.py` | PDF loading and chunking (800 char chunks) |
 | `src/embedder.py` | all-MiniLM-L6-v2 embeddings + ChromaDB |
 | `src/retriever.py` | MMR retrieval with dynamic k |
-| `src/chain.py` | Strict context-only RAG prompt + Groq LLM |
+| `src/chain.py` | Strict context-only RAG prompt + Gemini 2.5 Flash LLM |
 | `src/evaluator.py` | RAGAS scoring with pandas-based extraction |
 | `test_evaluator.py` | Component verification script |
 
@@ -92,7 +92,7 @@ The pipeline:
 
 | Problem | Fix |
 |---|---|
-| `GROQ_API_KEY not found` | Add key to `.env` file |
+| `GOOGLE_API_KEY not found` | Add key to `.env` file |
 | `No PDF files found` | Add PDFs to `data/` folder |
 | `rate_limit_exceeded` | Reduce `NUM_QUESTIONS` in `evaluate_rag.py` or wait for daily limit reset |
 | `create_prompt() got an unexpected keyword argument 'mode'` | ✅ Fixed — removed stale `mode="eval"` arg from `evaluate_rag.py` line 169 |
@@ -102,7 +102,7 @@ The pipeline:
 
 ## Stack
 
-- **LLM**: Groq (`llama-3.1-8b-instant`)
+- **LLM**: Google Gemini (`gemini-2.5-flash`)
 - **Embeddings**: `sentence-transformers/all-MiniLM-L6-v2` (local, no API key needed)
 - **Vector DB**: ChromaDB (persisted locally)
 - **Retrieval**: MMR (Maximal Marginal Relevance)

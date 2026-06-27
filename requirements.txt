@@ -9,7 +9,7 @@
 langchain==1.2.12
 
 # LangChain Core - Base classes and abstractions
-langchain-core==1.2.20
+langchain-core==1.4.8
 
 # LangChain Community - Integrations for third-party services
 langchain-community==0.4.1
@@ -35,11 +35,11 @@ huggingface-hub==1.7.1
 # ============================================================================
 # LLM PROVIDERS
 # ============================================================================
-# Groq API Client - Access to Groq's fast LLMs
-groq==0.37.1
+# Google Generative AI SDK - Access to Gemini models
+google-genai==2.10.0
 
-# LangChain Groq Integration - Use Groq LLMs with LangChain
-langchain-groq==1.1.2
+# LangChain Google GenAI Integration - Use Gemini LLMs with LangChain
+langchain-google-genai==4.2.6
 
 # ============================================================================
 # DOCUMENT PROCESSING
@@ -83,7 +83,7 @@ tiktoken==0.12.0
 # - System packages (install via apt/brew/choco)
 #
 # To install: pip install -r requirements.txt
-# To update:  pip freeze | grep -E "langchain|groq|chromadb|streamlit|ragas" > requirements.txt
+# To update:  pip freeze | grep -E "langchain|google-genai|chromadb|streamlit|ragas" > requirements.txt
 #
 # Streamlit Cloud will automatically:
 # 1. Read this file
