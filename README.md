@@ -22,7 +22,11 @@ pip install -r requirements.txt
 Create a `.env` file in the project root:
 
 ```text
+# Main app (chain.py) — Gemini 2.5 Flash
 GOOGLE_API_KEY=your_google_api_key_here
+
+# Evaluation pipeline (evaluate_rag.py + src/evaluator.py) — Groq
+GROQ_API_KEY=your_groq_api_key_here
 ```
 
 ## Run the app
@@ -92,7 +96,8 @@ The pipeline:
 
 | Problem | Fix |
 |---|---|
-| `GOOGLE_API_KEY not found` | Add key to `.env` file |
+| `GOOGLE_API_KEY not found` | Add key to `.env` file (needed by `app.py`) |
+| `GROQ_API_KEY not found` | Add key to `.env` file (needed by `evaluate_rag.py`) |
 | `No PDF files found` | Add PDFs to `data/` folder |
 | `rate_limit_exceeded` | Reduce `NUM_QUESTIONS` in `evaluate_rag.py` or wait for daily limit reset |
 | `create_prompt() got an unexpected keyword argument 'mode'` | ✅ Fixed — removed stale `mode="eval"` arg from `evaluate_rag.py` line 169 |
@@ -102,7 +107,8 @@ The pipeline:
 
 ## Stack
 
-- **LLM**: Google Gemini (`gemini-2.5-flash`)
+- **App LLM**: Google Gemini (`gemini-2.5-flash`) — via `chain.py`
+- **Eval LLM**: Groq (`llama-3.3-70b-versatile`) — via `evaluate_rag.py` + `src/evaluator.py`
 - **Embeddings**: `sentence-transformers/all-MiniLM-L6-v2` (local, no API key needed)
 - **Vector DB**: ChromaDB (persisted locally)
 - **Retrieval**: MMR (Maximal Marginal Relevance)

@@ -31,7 +31,7 @@ except Exception:
 from src.loader import load_and_chunk_pdfs
 from src.embedder import load_embeddings, create_or_load_vectorstore
 from src.retriever import create_retriever, format_retrieved_chunks
-from src.chain import create_llm, create_prompt
+from src.chain import create_prompt
 from src.evaluator import (
     run_ragas_evaluation,
     print_evaluation_report,
@@ -44,23 +44,40 @@ load_dotenv()
 # Configuration
 DATA_DIR = "data"
 RESULTS_FILE = "evaluation_results.json"
-NUM_QUESTIONS = 3  # 3 questions keeps usage modest within Google AI free-tier limits
+NUM_QUESTIONS = 3  # 3 questions keeps usage within Groq free-tier limits
 
 
-def get_google_api_key() -> str:
+def get_groq_api_key() -> str:
     """
-    Get Google API key from environment.
-    
+    Get Groq API key from environment.
+
     Raises:
-        ValueError: If GOOGLE_API_KEY not set
+        ValueError: If GROQ_API_KEY not set
     """
-    api_key = os.getenv("GOOGLE_API_KEY")
+    api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         raise ValueError(
-            "GOOGLE_API_KEY not found in .env file. "
-            "Please add: GOOGLE_API_KEY=your_key"
+            "GROQ_API_KEY not found in .env file. "
+            "Please add: GROQ_API_KEY=your_key"
         )
     return api_key
+
+
+def create_groq_llm():
+    """
+    Create a ChatGroq LLM instance for question generation.
+
+    Uses llama-3.3-70b-versatile — high quality, generous free tier.
+
+    Returns:
+        ChatGroq LLM object
+    """
+    from langchain_groq import ChatGroq
+    return ChatGroq(
+        model="llama-3.3-70b-versatile",
+        groq_api_key=os.getenv("GROQ_API_KEY"),
+        temperature=0
+    )
 
 
 def generate_test_questions(chunks: list) -> list:
@@ -81,7 +98,7 @@ def generate_test_questions(chunks: list) -> list:
         doc_summary = "\n\n".join([chunk.page_content for chunk in sample_chunks])
         
         # Get LLM
-        llm = create_llm()
+        llm = create_groq_llm()
         
         # Create prompt for question generation
         question_generation_prompt = f"""Based on the following document excerpts, generate exactly {NUM_QUESTIONS} diverse evaluation questions that cover different aspects of the content. The questions should be:
@@ -293,8 +310,8 @@ def main():
     try:
         # 1. Validate API key
         print("\n🔑 Validating API credentials...")
-        get_google_api_key()
-        print("✓ Google API key found")
+        get_groq_api_key()
+        print("✓ Groq API key found")
         
         # 2. Load and chunk PDFs
         print(f"\n📄 Loading PDFs from '{DATA_DIR}'...")

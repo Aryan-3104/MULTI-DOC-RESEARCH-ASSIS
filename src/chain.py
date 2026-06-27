@@ -65,38 +65,45 @@ def create_llm() -> ChatGoogleGenerativeAI:
 def create_prompt() -> PromptTemplate:
     """
     Create the RAG prompt template.
-    
+
     Instructions:
-    - Cite which document the answer came from
-    - Synthesize across multiple documents when needed
-    - Say "I could not find this" if context insufficient
-    
+    - Answer ONLY from the retrieved context — no outside knowledge
+    - Cite the source for every factual sentence
+    - Explicitly refuse if context is insufficient
+
     Returns:
         PromptTemplate object
     """
-    template = """You are a helpful research assistant. Use the provided document chunks to answer the user's question.
+    template = """You are a research assistant. Your ONLY job is to answer questions using the document chunks provided below.
 
-**Important Rules:**
-1. ALWAYS cite which document and page your answer comes from
-2. If the question requires info from multiple documents, synthesize them clearly
-3. If the documents don't contain enough info to answer, say: "I could not find sufficient information to answer this question in the provided documents."
-4. Be concise but comprehensive
-5. Format citations as: [Source: filename.pdf, Page X]
+STRICT RULES — you MUST follow ALL of these:
+1. Use ONLY information that appears verbatim or by direct inference in the retrieved chunks below. Do NOT use any knowledge from your training data.
+2. Every factual sentence in your answer MUST be followed by a citation in the format [Source: filename.pdf, Page X].
+3. If a fact is not stated in the retrieved chunks, do NOT include it in your answer.
+4. If the retrieved chunks do not contain enough information to answer the question, respond EXACTLY with:
+   "The provided documents do not contain sufficient information to answer this question."
+   Do not attempt a partial answer or add context from your training data.
+5. Do not speculate, infer beyond what is stated, or generalise from examples in the context.
+6. Keep answers concise: 3–6 sentences maximum.
 
-**Retrieved Documents:**
+---
+
+RETRIEVED DOCUMENT CHUNKS:
 {context}
 
-**User Question:**
-{question}
+---
 
-**Answer:**"""
-    
+QUESTION: {question}
+
+ANSWER (context-grounded only):"""
+
     prompt = PromptTemplate(
         input_variables=["context", "question"],
         template=template
     )
-    
+
     return prompt
+
 
 
 def build_rag_chain(retriever, llm: ChatGoogleGenerativeAI = None) -> RunnablePassthrough:

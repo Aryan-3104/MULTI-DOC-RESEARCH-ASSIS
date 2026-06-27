@@ -3,7 +3,7 @@ RAGAS Evaluation Module
 
 Evaluates RAG pipeline using RAGAS (Retrieval-Augmented Generation Assessment).
 Metrics: faithfulness, answer_relevancy, context_precision.
-Uses Google Gemini API for evaluation LLM (gemini-2.5-flash).
+Uses Groq API for evaluation LLM (llama-3.3-70b-versatile).
 """
 
 import nest_asyncio
@@ -13,7 +13,7 @@ import os
 import json
 import sys
 from dotenv import load_dotenv
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 
 # Reconfigure stdout/stderr to UTF-8 to prevent UnicodeEncodeError on Windows console
 try:
@@ -28,7 +28,7 @@ except Exception:
 load_dotenv()
 
 # Model configuration
-EVALUATOR_MODEL = "gemini-2.5-flash"
+EVALUATOR_MODEL = "llama-3.3-70b-versatile"
 EVALUATOR_TEMPERATURE = 0  # Factual evaluation
 EVALUATOR_MAX_TOKENS = 2048  # RAGAS only needs short scoring responses (was 4096)
 
@@ -43,33 +43,33 @@ except ImportError:
     RAGAS_AVAILABLE = False
 
 
-def get_evaluator_llm() -> ChatGoogleGenerativeAI:
+def get_evaluator_llm() -> ChatGroq:
     """
-    Create a ChatGoogleGenerativeAI LLM instance for RAGAS evaluation.
-    
-    Uses gemini-2.5-flash model for evaluation.
+    Create a ChatGroq LLM instance for RAGAS evaluation.
+
+    Uses llama-3.3-70b-versatile — high quality, generous free-tier token limit.
     Lower temperature for consistent, factual scoring.
-    
+
     Returns:
-        ChatGoogleGenerativeAI LLM object for evaluation
-        
+        ChatGroq LLM object for evaluation
+
     Raises:
-        ValueError: If GOOGLE_API_KEY not found in .env
+        ValueError: If GROQ_API_KEY not found in .env
     """
-    api_key = os.getenv("GOOGLE_API_KEY")
+    api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         raise ValueError(
-            "GOOGLE_API_KEY not found in .env file. "
-            "Please add: GOOGLE_API_KEY=your_key"
+            "GROQ_API_KEY not found in .env file. "
+            "Please add: GROQ_API_KEY=your_key"
         )
-    
-    evaluator_llm = ChatGoogleGenerativeAI(
+
+    evaluator_llm = ChatGroq(
         model=EVALUATOR_MODEL,
+        groq_api_key=api_key,
         temperature=EVALUATOR_TEMPERATURE,
-        max_output_tokens=EVALUATOR_MAX_TOKENS,
-        google_api_key=api_key
+        max_tokens=EVALUATOR_MAX_TOKENS
     )
-    
+
     print(f"✓ Evaluator LLM initialized: {EVALUATOR_MODEL}")
     return evaluator_llm
 
